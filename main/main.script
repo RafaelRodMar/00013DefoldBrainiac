@@ -1,0 +1,159 @@
+local tileStates = {}
+local tiles = {}
+local tile1 = {}
+local tile2 = {}
+local matches = 0
+local tries = 0
+local mouseClicked = true
+local mousePos = vmath.vector3(0,0,0)
+
+function init(self)
+	math.randomseed(os.time())
+	msg.post(".", "acquire_input_focus")
+	msg.post("@render:", "use_fixed_fit_projection", { near = -1, far = 1 })
+
+	--clear the tile states and images
+	for i = 0,3,1
+	do
+		tileStates[i] = {}
+		tiles[i] = {}
+		for j = 0,3,1
+		do
+			tileStates[i][j] = false
+			tiles[i][j] = 0
+		end
+	end
+
+	--initialize the tile images randomly
+	for i = 0,1,1
+	do
+		for j = 0,8,1
+		do
+			x = math.random(0,3)
+			y = math.random(0,3)
+			while (tiles[x][y] ~= 0)
+			do
+				x = math.random(0,3)
+				y = math.random(0,3)
+			end
+			tiles[x][y] = j
+			--print(x .. " " .. y .. " " .. tiles[x][y])
+		end
+	end
+
+	--initialize the tile selections and match/try count
+	tile1.m_x = -1
+	tile1.m_y = -1
+	tile2.m_x = -1
+	tile2.m_y = -1
+	matches = 0
+	tries = 0
+	
+end
+
+function update()
+	if mouseClicked == true then
+		--determine which tile was clicked
+		local TileX = mousePos.x
+		local TileY = mousePos.y
+		--adapt y coordinate
+		TileY = 3 - TileY
+		print("clicked on : " .. TileX .. " " .. TileY)
+
+		--make sure the tile hasn't already been matched
+		if tileStates[TileX][TileY] == false then
+			print(TileX .. " " .. TileY .. " was not clicked before")
+			--see if this is the first tile selected
+			if tile1.m_x == -1 then
+				--play sound for tile selection
+				sound.play("#select")
+				
+				--set the first tile selection
+				tile1.m_x = TileX
+				tile1.m_y = TileY
+				print("first tile selection : " .. tile1.m_x .. " " .. tile1.m_y)
+				local num = TileY * 4 + TileX + 1
+				local url = "Tile" .. num .. "#sprite"
+				local anim = "Tile" .. tiles[TileX][TileY]
+				--msg.post("Tile1#sprite", "play_animation", {id = hash("Tile1")})
+				msg.post(url, "play_animation", {id = hash(anim)})
+			elseif (TileX ~= tile1.m_x) or (TileY ~= tile1.m_y) then
+				if tile2.m_x == -1 then
+					--play a sound for the tile selection
+					sound.play("#select")
+					
+					--increase the number of tries
+					tries = tries + 1
+
+					--set the second tile selection
+					tile2.m_x = TileX
+					tile2.m_y = TileY
+					print("second tile selection : " .. tile2.m_x .. " " .. tile2.m_y)
+					num = TileY * 4 + TileX + 1
+					url = "Tile" .. num .. "#sprite"
+					anim = "Tile" .. tiles[TileX][TileY]
+					--msg.post("Tile2#sprite", "play_animation", {id = hash("Tile2")})
+					msg.post(url, "play_animation", {id = hash(anim)})
+
+					--see if it's a match
+					if tiles[tile1.m_x][tile1.m_y] == tiles[tile2.m_x][tile2.m_y] then
+						print("there is a match")
+						--play a sound for the tile match
+						sound.play("#match")
+
+						--set the tile state to indicate the match
+						tileStates[tile1.m_x][tile1.m_y] = true
+						tileStates[tile2.m_x][tile2.m_y] = true
+
+						--clear the tile selections
+						tile1.m_x = -1
+						tile1.m_y = -1
+						tile2.m_x = -1
+						tile2.m_y = -1
+
+						--update the match count and check for winner
+						matches = matches + 1
+						if matches == 8 then
+							--play a victory sound
+							sound.play("#win")
+						end
+					else
+						--play a sound for the tile mismatch
+						print("there is a mismatch")
+						sound.play("#mismatch")
+					end
+				else
+					print("restoring the blank tile")
+					--restore the two blankTile
+					num = tile1.m_y * 4 + tile1.m_x + 1
+					url = "Tile" .. num .. "#sprite"
+					anim = "TileBlank"
+					msg.post(url, "play_animation", {id = hash(anim)})
+					
+					num = tile2.m_y * 4 + tile2.m_x + 1
+					url = "Tile" .. num .. "#sprite"
+					anim = "TileBlank"
+					msg.post(url, "play_animation", {id = hash(anim)})
+					--clear the tile selections
+					tile1.m_x = -1
+					tile1.m_y = -1
+					tile2.m_x = -1
+					tile2.m_y = -1
+				end
+			end
+		end
+
+		mouseClicked = false
+	end
+end
+
+function on_input(self, action_id, action)
+	mouseClicked = false
+	if action_id == hash("touch") and action.pressed then
+		print("Touch!")
+		mouseClicked = true
+		mousePos.x = math.floor(action.x / 132) --tilewidth = 132
+		mousePos.y = math.floor(action.y / 127) --tileheight = 127
+		--print(action.x .. " " .. action.y)
+	end
+end
